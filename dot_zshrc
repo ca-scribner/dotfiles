@@ -1,0 +1,45 @@
+# TODO: any omzsh settings?
+
+# Kubernetes
+export KUBE_EDITOR='subl -n -w'
+# TODO: Add kubectl auto completes to shell: `echo "[[ $commands[kubectl] ]] && source <(kubectl completion zsh)" >> ~/.zshrc`
+
+# Add local bin
+export PATH="/home/scribs/.local/bin:$PATH"
+
+# Add Go and its bins
+export PATH="$PATH:/usr/local/go/bin"
+export PATH="$PATH:$(go env GOPATH)/bin"
+
+# TODO: Do I need this?
+### Fix slowness of pastes with zsh-syntax-highlighting.zsh
+# pasteinit() {
+#   OLD_SELF_INSERT=${${(s.:.)widgets[self-insert]}[2,3]}
+#   zle -N self-insert url-quote-magic # I wonder if you'd need `.url-quote-magic`?
+# }
+
+# pastefinish() {
+#   zle -N self-insert $OLD_SELF_INSERT
+# }
+
+# zstyle :bracketed-paste-magic paste-init pasteinit
+# zstyle :bracketed-paste-magic paste-finish pastefinish
+### Fix slowness of pastes
+
+# TODO: Use starship?
+# Enable starship
+# eval "$(starship init zsh)"
+
+# TODO: did I have a better way than this to avoid using system python?
+# Activate global python venv so we don't mess with system, but still have something global
+source ~/.global_venv/bin/activate
+
+. "$HOME/.atuin/bin/env"
+
+eval "$(atuin init zsh)"
+
+# autocomplete for fx
+source <(fx --comp zsh)
+
+# Load shared aliases with bash
+source $HOME/.aliases

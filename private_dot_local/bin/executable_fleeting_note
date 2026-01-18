@@ -1,0 +1,7 @@
+#!/bin/bash
+
+TMPDIR="/home/scribs/obsidian/Main/_unsorted_notes"
+# Note, this technically has a race condition where someone else can create this
+# same file while we work before we save it in sublime, but realistically that wont happen...
+F=$(mktemp -u $TMPDIR/fleeting-$(date +"%Y-%m-%d")-XXXXX.md)
+subl -n $F

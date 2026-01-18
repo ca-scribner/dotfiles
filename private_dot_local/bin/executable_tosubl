@@ -1,0 +1,9 @@
+#!/bin/bash
+
+TMPDIR=${TMPDIR:-/tmp}
+F=$(mktemp $TMPDIR/tosubl-XXXXXXXX)
+cat >| $F  # use >| instead of > if you set noclobber in bash
+subl -n $F
+echo $F
+# sleep 0.3  # Sleep a little to give subl time to open the file
+rm -f $F  # Remove file as soon as we close
