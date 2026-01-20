@@ -1,4 +1,5 @@
-# TODO: any omzsh settings?
+# Environment variables
+export VISUAL=subl
 
 # Kubernetes
 export KUBE_EDITOR='subl -n -w'
@@ -26,10 +27,6 @@ export PATH="$PATH:$(go env GOPATH)/bin"
 # zstyle :bracketed-paste-magic paste-finish pastefinish
 ### Fix slowness of pastes
 
-# TODO: Use starship?
-# Enable starship
-# eval "$(starship init zsh)"
-
 # TODO: did I have a better way than this to avoid using system python?
 # Activate global python venv so we don't mess with system, but still have something global
 source ~/.global_venv/bin/activate
@@ -43,3 +40,6 @@ source <(fx --comp zsh)
 
 # Load shared aliases with bash
 source $HOME/.aliases
+
+# Enable zsh-syntax-highlighting plugin
+source $HOME/.config/zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
