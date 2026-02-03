@@ -1,16 +1,69 @@
-# Environment variables
-export VISUAL=subl
+# Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
+# Initialization code that may require console input (password prompts, [y/n]
+# confirmations, etc.) must go above this block; everything else may go below.
+if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
+  source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
+fi
+
+#############
+# General Configuration
+#############
+export VISUAL="subl --wait"
+export CODE_ROOT="$HOME/code"
+
+# Add local bin
+export PATH="$HOME/.local/bin:$PATH"
+
+# Load shared aliases with bash
+source $HOME/.aliases
+
+# usually I just go to ~/code anyway, but I don't want to if I'm opening a terminal in a specific (non HOME place)
+if [[ "$PWD" == "$HOME" ]]; then
+    if [[ -d ~/code ]]; then
+        cd ~/code
+    fi
+fi
+
+#############
+# Bindings
+#############
+# [Ctrl-RightArrow] - move forward one word
+bindkey '^[[1;5C' forward-word
+# [Ctrl-LeftArrow] - move backward one word
+bindkey '^[[1;5D' backward-word
+
+#############
+# zsh plugins and prompts
+#############
+
+# Enable zsh-syntax-highlighting plugin
+source $HOME/.config/zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+
+# Enable zsh-autosuggestions plugin
+source $HOME/.config/zsh/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh
+
+# Powerlevel10k prompt
+source ~/.config/zsh/themes/powerlevel10k/powerlevel10k.zsh-theme
+# To customize prompt, run `p10k configure` or edit ~/.config/zsh/themes/.p10k.zsh.
+[[ ! -f ~/.config/zsh/themes/.p10k.zsh ]] || source ~/.config/zsh/themes/.p10k.zsh
+
+#############
+# Application configuration
+#############
 
 # Kubernetes
 export KUBE_EDITOR='subl -n -w'
 # TODO: Add kubectl auto completes to shell: `echo "[[ $commands[kubectl] ]] && source <(kubectl completion zsh)" >> ~/.zshrc`
 
-# Add local bin
-export PATH="/home/scribs/.local/bin:$PATH"
-
 # Add Go and its bins
 export PATH="$PATH:/usr/local/go/bin"
 export PATH="$PATH:$(go env GOPATH)/bin"
+
+. "$HOME/.atuin/bin/env"
+eval "$(atuin init zsh)"
+
+# autocomplete for fx
+source <(fx --comp zsh)
 
 # TODO: Do I need this?
 ### Fix slowness of pastes with zsh-syntax-highlighting.zsh
@@ -31,15 +84,10 @@ export PATH="$PATH:$(go env GOPATH)/bin"
 # Activate global python venv so we don't mess with system, but still have something global
 source ~/.global_venv/bin/activate
 
-. "$HOME/.atuin/bin/env"
+# eza autocompletions
+export FPATH="$HOME/.local/src/completions/zsh:$FPATH"
 
-eval "$(atuin init zsh)"
-
-# autocomplete for fx
-source <(fx --comp zsh)
-
-# Load shared aliases with bash
-source $HOME/.aliases
-
-# Enable zsh-syntax-highlighting plugin
-source $HOME/.config/zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+# Set up fzf key bindings and fuzzy completion
+if command -v fzf > /dev/null 2>&1; then
+  source <(fzf --zsh)
+fi

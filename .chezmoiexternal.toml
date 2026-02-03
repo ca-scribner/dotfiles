@@ -4,9 +4,14 @@
     exact = true
     stripComponents = 1
     refreshPeriod = "168h"
+[".config/zsh/plugins/zsh-autosuggestions"]
+    type = "archive"
+    url = "https://github.com/zsh-users/zsh-autosuggestions/archive/v0.7.1.tar.gz"
+    exact = true
+    stripComponents = 1
+    refreshPeriod = "168h"
 [".config/zsh/themes/powerlevel10k"]
     type = "archive"
     url = "https://github.com/romkatv/powerlevel10k/archive/v1.20.0.tar.gz"
     exact = true
     stripComponents = 1
-    
