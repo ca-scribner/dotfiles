@@ -6,9 +6,12 @@ alias editaliases='subl -n ~/.aliases; echo "Dont forget to commit any changes u
 alias editrc='subl -n ~/.zshrc; echo "Dont forget to commit any changes using \"chezmoi diff ~/.zshrc; chezmoi add ~/.zshrc\""'
 
 # cg
-alias cga
-alias cga='cg adv'
-alias cgar='cga review list'
+alias ca='cg adv'
+alias cal='cg adv list'
+alias cas='cg adv show'
+alias car='cg adv review'
+alias carl='cg adv review list'
+alias cg_auth='export HTTP_AUTH="basic:apk.cgr.dev:user:$(chainctl auth token --audience apk.cgr.dev)"'
 
 # Check if eza is installed
 if command -v eza > /dev/null 2>&1; then
@@ -25,12 +28,34 @@ fi
 #   sleep 10; alert
 alias alert='notify-send --urgency=low -i "$([ $? = 0 ] && echo terminal || echo error)" "$(history|tail -n1|sed -e '\''s/^\s*[0-9]\+\s*//;s/[;&|]\s*alert$//'\'')"'
 
+# Git-related
+# git remote add fork
+graf() {
+  git remote add f "$(git remote get-url origin \
+    | sed "s|github.com:[^/]*/|github.com:${GITHUB_USERID}/|")"
+}
+
+# git clone from local and set up origin/fork
+git-clone-from-local-and-fork() {
+  # input:
+  # * BRANCH: required
+  # * OWNER: optional, defaults to "chainguard-dev"
+  OWNER="${OWNER:-chainguard-dev}"
+  git -C ../$OWNER/main pull
+  git-clone.sh ../$OWNER/main/ $BRANCH
+  cd $BRANCH
+  git checkout -b $BRANCH
+  graf
+  git fetch origin
+}
+
 ####################
 # Quick links to common directories
 ####################
 
 alias cdcode='cd $CODE_ROOT'
 alias cdmono='cd $CODE_ROOT/mono/chainguard-dev/'
+alias cdstereo='cd $CODE_ROOT/stereo/ca-scribner/'
 alias cdjunk='cd "$CODE_ROOT/junk"'
 alias cdsandbox='cd "$CODE_ROOT/sandbox-of-power/ca-scribner"'
 alias cdenp='cd "$CODE_ROOT/enterprise-packages/ca-scribner"'
@@ -38,3 +63,9 @@ alias cdena='cd "$CODE_ROOT/enterprise-advisories/ca-scribner"'
 alias cdexp='cd "$CODE_ROOT/extra-packages/ca-scribner"'
 alias cdexa='cd "$CODE_ROOT/extra-advisories/ca-scribner"'
 
+alias cdadv='cd "$CODE_ROOT/sandbox-of-power/ca-scribner/advisory-browser/andrew.scribner/advisory-browser"'
+####################
+# Other
+####################
+# Hint to myself that I should probably use `fd` instead of `find`
+alias find='echo "Do you want to do this with fd?"; find'

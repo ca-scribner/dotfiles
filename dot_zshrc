@@ -8,7 +8,9 @@ fi
 #############
 # General Configuration
 #############
+export GITHUB_USERID="ca-scribner"
 export VISUAL="subl --wait"
+export EDITOR="$VISUAL"
 export CODE_ROOT="$HOME/code"
 
 # Add local bin
@@ -59,9 +61,6 @@ export KUBE_EDITOR='subl -n -w'
 export PATH="$PATH:/usr/local/go/bin"
 export PATH="$PATH:$(go env GOPATH)/bin"
 
-. "$HOME/.atuin/bin/env"
-eval "$(atuin init zsh)"
-
 # autocomplete for fx
 source <(fx --comp zsh)
 
@@ -91,3 +90,11 @@ export FPATH="$HOME/.local/src/completions/zsh:$FPATH"
 if command -v fzf > /dev/null 2>&1; then
   source <(fzf --zsh)
 fi
+
+# Set up atuin
+# Keep this below `fzf` setup so atuin owns the ctrl+R binding
+. "$HOME/.atuin/bin/env"
+eval "$(atuin init zsh)"
+
+# Load chainguard-specific extras
+[[ ! -f $HOME/.zsh_chainguard ]] || source $HOME/.zsh_chainguard

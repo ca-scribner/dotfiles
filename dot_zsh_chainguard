@@ -1,0 +1,41 @@
+# chainguard helpers (chainguard-specific)
+. $HOME/code/wolfi-rc/wolfi-rc/main/wolfi-rc
+
+# wolfi-rc complimentary
+# todo: if you find them useful, put them somewhere you can share
+# Note, these depend on wolfi-rc
+function wolfi-ensure-epoch-incremented() {
+    local new_comment=$1
+
+    # For any file that is staged but does not have an epoch bump, bump the epoch and include a comment if provided
+    wolfi-find-missing-epoch-bump | while IFS= read -r file; do
+        echo "bumping epoch for $file"
+        wolfi-bump-epoch-with-comment "$file" "$new_comment"
+    done
+}
+
+function wolfi-find-missing-epoch-bump() {
+    # Prints the names of any staged yaml files that do not have epoch bumps
+
+    # Get the list of modified YAML files in the staging area
+    modified_files=$(git diff --cached --name-only --diff-filter=AM | grep '\.yaml$')
+    
+    # Check each modified YAML file and echo the filename if it is not incremented
+    for file in $modified_files; do
+        check_epoch_increment "$file" >/dev/null 2>&1 || echo "$file"
+    done    
+}
+
+wolfi-bump-epoch-with-comment() {
+    local new_comment=$2
+    local e=$(grep "epoch:" "$1" \
+        | sed -e "s/[[:space:]][[:space:]]*#.*//" \
+        | sed -e "s/.*: //"
+    )
+    e=$((e+1))
+    if [[ -n "$new_comment" ]]; then
+        e="$e # $new_comment"
+    fi
+
+    sed -i -e "s/^  epoch:.*/  epoch: $e/" "$1"
+}
