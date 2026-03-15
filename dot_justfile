@@ -1,0 +1,665 @@
+set shell := ["bash", "-euo", "pipefail", "-c"]
+
+# Go PATH preamble — needed by every go-tool recipe since each runs in its own shell
+go_setup := 'export PATH="$PATH:/usr/local/go/bin:${GOPATH:-$HOME/go}/bin"'
+
+# Show available recipes
+default:
+    @just --justfile {{justfile()}} --list
+
+# ============================================================================
+# Meta recipes
+# ============================================================================
+
+# Install everything (non-interactive)
+install-all: install-cli install-dev install-desktop install-chainguard install-system
+    @echo ""
+    @echo "All installations complete."
+    @echo ""
+    @echo "Manual steps remaining:"
+    @echo "  gh auth login -p ssh"
+    @echo "  ssh-keygen -t ed25519-sk -C 'ca.scribner+1@gmail.com'"
+    @echo "  chainctl auth login"
+    @echo "  gnome-extensions enable 'pop-shell@system76.com' (after logout/login)"
+    @echo "  Log out and back in for docker group + zsh to take effect"
+
+# Essential command-line tools for any machine
+install-cli: install-cli-apt-packages install-zsh install-atuin install-claude install-uv install-nvm install-fzf install-fd install-eza install-lazygit install-delta install-diff-so-fancy install-yq install-git-fuzzy
+
+# Development runtimes and tooling
+install-dev: install-dev-apt-packages install-go install-docker install-homebrew install-ghcli install-gcloud install-terraform install-k3d install-kubectl install-crane install-cue install-dive install-gitsign install-yam
+
+# GUI applications and desktop environment
+install-desktop: install-desktop-apt-packages install-snap-packages install-chrome install-kitty install-sublime install-jetbrains-toolbox install-obsidian install-dconf-editor install-gnome-browser-connector install-pop-shell configure-gnome
+
+# Chainguard work-specific tools
+install-chainguard: install-chainctl install-cg-tokens install-wolfi-rc install-cosign install-hugo install-grype install-syft
+
+# OS-level configuration
+install-system: configure-swap
+
+# ============================================================================
+# CLI tools
+# ============================================================================
+
+install-cli-apt-packages:
+    #!/bin/bash
+    set -euo pipefail
+    sudo apt-get update
+    sudo apt-get install -y \
+        curl \
+        ca-certificates \
+        git-all \
+        jq
+
+install-zsh: install-cli-apt-packages
+    #!/bin/bash
+    set -euo pipefail
+    if ! command -v zsh &>/dev/null; then
+        sudo apt install -y zsh
+    fi
+    if [[ "$(getent passwd "$USER" | cut -d: -f7)" != "$(which zsh)" ]]; then
+        chsh -s "$(which zsh)"
+        echo "Default shell changed to zsh — log out and back in for it to take effect"
+    fi
+
+install-atuin:
+    #!/bin/bash
+    set -euo pipefail
+    if command -v atuin &>/dev/null; then echo "atuin already installed"; exit 0; fi
+    # https://docs.atuin.sh/guide/installation/
+    curl --proto '=https' --tlsv1.2 -LsSf https://setup.atuin.sh | sh
+
+install-claude:
+    #!/bin/bash
+    set -euo pipefail
+    if command -v claude &>/dev/null; then echo "claude already installed"; exit 0; fi
+    curl -fsSL https://claude.ai/install.sh | bash
+
+install-uv:
+    #!/bin/bash
+    set -euo pipefail
+    if command -v uv &>/dev/null; then echo "uv already installed"; exit 0; fi
+    # https://docs.astral.sh/uv/getting-started/installation/
+    wget -qO- https://astral.sh/uv/install.sh | sh
+
+install-nvm:
+    #!/bin/bash
+    set -euo pipefail
+    if [ -d "$HOME/.nvm" ]; then echo "nvm already installed"; exit 0; fi
+    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+
+install-fzf:
+    #!/bin/bash
+    set -euo pipefail
+    if command -v fzf &>/dev/null; then echo "fzf already installed"; exit 0; fi
+    # https://github.com/junegunn/fzf
+    get_latest_github_release.sh junegunn/fzf fzf
+
+install-fd: install-cli-apt-packages
+    #!/bin/bash
+    set -euo pipefail
+    mkdir -p "$HOME/.local/bin"
+    if command -v fd &>/dev/null || command -v fdfind &>/dev/null; then
+        echo "fd already installed"
+        # Ensure the symlink exists
+        if command -v fdfind &>/dev/null && [ ! -e "$HOME/.local/bin/fd" ]; then
+            ln -s "$(which fdfind)" "$HOME/.local/bin/fd"
+        fi
+        exit 0
+    fi
+    # https://github.com/sharkdp/fd
+    sudo apt-get install -y fd-find
+    ln -sf "$(which fdfind)" "$HOME/.local/bin/fd"
+
+install-eza: install-cli-apt-packages
+    #!/bin/bash
+    set -euo pipefail
+    if command -v eza &>/dev/null; then echo "eza already installed"; exit 0; fi
+    sudo apt-get update
+    sudo apt-get install -y eza
+    # Zsh completions — .zshrc sets FPATH="$HOME/.local/src/completions/zsh:$FPATH"
+    mkdir -p "$HOME/.local/src"
+    if [ ! -d "$HOME/.local/src/eza" ]; then
+        git clone https://github.com/eza-community/eza.git "$HOME/.local/src/eza"
+    fi
+    mkdir -p "$HOME/.local/src/completions"
+    ln -sfn "$HOME/.local/src/eza/completions/zsh" "$HOME/.local/src/completions/zsh"
+
+install-lazygit:
+    #!/bin/bash
+    set -euo pipefail
+    if command -v lazygit &>/dev/null; then echo "lazygit already installed"; exit 0; fi
+    # https://github.com/jesseduffield/lazygit
+    get_latest_github_release.sh jesseduffield/lazygit lazygit
+
+install-delta:
+    #!/bin/bash
+    set -euo pipefail
+    if command -v delta &>/dev/null; then echo "delta already installed"; exit 0; fi
+    # https://github.com/dandavison/delta
+    TEMP_DEB=$(mktemp --suffix=.deb)
+    curl -fsSL https://github.com/dandavison/delta/releases/download/0.18.2/git-delta_0.18.2_amd64.deb -o "$TEMP_DEB"
+    sudo dpkg -i "$TEMP_DEB"
+    rm "$TEMP_DEB"
+
+install-diff-so-fancy:
+    #!/bin/bash
+    set -euo pipefail
+    if command -v diff-so-fancy &>/dev/null; then echo "diff-so-fancy already installed"; exit 0; fi
+    # https://github.com/so-fancy/diff-so-fancy
+    mkdir -p "$HOME/.local/bin"
+    curl -fsSL https://github.com/so-fancy/diff-so-fancy/releases/download/v1.4.4/diff-so-fancy -o "$HOME/.local/bin/diff-so-fancy"
+    chmod +x "$HOME/.local/bin/diff-so-fancy"
+
+install-yq:
+    #!/bin/bash
+    set -euo pipefail
+    if command -v yq &>/dev/null; then echo "yq already installed"; exit 0; fi
+    # https://github.com/mikefarah/yq
+    mkdir -p "$HOME/.local/bin"
+    curl -s https://api.github.com/repos/mikefarah/yq/releases/latest \
+      | grep "browser_download_url.*yq_linux_amd64.tar.gz" \
+      | cut -d : -f 2,3 \
+      | tr -d \" \
+      | wget -q -i - -O - \
+      | tar xz && mv yq_linux_amd64 "$HOME/.local/bin/yq"
+
+install-git-fuzzy:
+    #!/bin/bash
+    set -euo pipefail
+    mkdir -p "$HOME/.local/bin" "$HOME/.local/src"
+    if command -v git-fuzzy &>/dev/null; then echo "git-fuzzy already installed"; exit 0; fi
+    # https://github.com/bigH/git-fuzzy
+    if [ ! -d "$HOME/.local/src/git-fuzzy" ]; then
+        git clone https://github.com/bigH/git-fuzzy.git "$HOME/.local/src/git-fuzzy"
+    fi
+    ln -sf "$HOME/.local/src/git-fuzzy/bin/git-fuzzy" "$HOME/.local/bin/git-fuzzy"
+
+# ============================================================================
+# Development tools
+# ============================================================================
+
+install-dev-apt-packages:
+    #!/bin/bash
+    set -euo pipefail
+    sudo apt-get update
+    sudo apt-get install -y \
+        make \
+        maven \
+        nodejs \
+        npm \
+        qemu-system
+
+install-go:
+    #!/bin/bash
+    set -euo pipefail
+    # https://go.dev/doc/install
+    GO_VERSION="1.25.4"
+    if command -v go &>/dev/null; then
+        INSTALLED="$(go version | grep -oP 'go\K[0-9]+\.[0-9]+\.[0-9]+')"
+        if [[ "$INSTALLED" == "$GO_VERSION" ]]; then
+            echo "Go ${GO_VERSION} already installed"
+            exit 0
+        fi
+        echo "Upgrading Go from ${INSTALLED} to ${GO_VERSION}"
+    fi
+    sudo apt-get remove -y golang-go 2>/dev/null || true
+    TARBALL="go${GO_VERSION}.linux-amd64.tar.gz"
+    curl -Lo "/tmp/${TARBALL}" "https://go.dev/dl/${TARBALL}"
+    sudo rm -rf /usr/local/go
+    sudo tar -C /usr/local -xzf "/tmp/${TARBALL}"
+    rm "/tmp/${TARBALL}"
+    echo "Go ${GO_VERSION} installed to /usr/local/go"
+
+install-docker:
+    #!/bin/bash
+    set -euo pipefail
+    # https://docs.docker.com/engine/install/ubuntu/
+    if command -v docker &>/dev/null; then
+        echo "Docker already installed"
+        exit 0
+    fi
+    sudo apt-get update
+    sudo apt-get install -y ca-certificates curl
+    sudo install -m 0755 -d /etc/apt/keyrings
+    sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+    sudo chmod a+r /etc/apt/keyrings/docker.asc
+    echo \
+      "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+      $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}") stable" | \
+      sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+    sudo apt-get update
+    sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    sudo groupadd docker || true
+    sudo usermod -aG docker "$USER"
+    echo "WARNING: Log out and back in for docker group membership to take effect"
+
+install-homebrew:
+    #!/bin/bash
+    set -euo pipefail
+    # https://brew.sh/
+    if command -v brew &>/dev/null; then
+        echo "Homebrew already installed"
+        exit 0
+    fi
+    NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    sudo apt-get install -y build-essential
+
+install-ghcli: install-cli-apt-packages
+    #!/bin/bash
+    set -euo pipefail
+    if command -v gh &>/dev/null; then echo "gh already installed"; exit 0; fi
+    # https://github.com/cli/cli/blob/trunk/docs/install_linux.md
+    (type -p wget >/dev/null || (sudo apt update && sudo apt install wget -y)) \
+        && sudo mkdir -p -m 755 /etc/apt/keyrings \
+        && out=$(mktemp) && wget -nv -O"$out" https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+        && cat "$out" | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
+        && sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+        && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+        && sudo apt update \
+        && sudo apt install gh -y
+    echo "NOTE: Run 'gh auth login -p ssh' manually to authenticate"
+
+install-gcloud:
+    #!/bin/bash
+    set -euo pipefail
+    if command -v gcloud &>/dev/null; then echo "gcloud already installed"; exit 0; fi
+    # https://cloud.google.com/sdk/docs/install
+    curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg
+    echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | sudo tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
+    sudo apt-get update && sudo apt-get install -y google-cloud-cli
+
+install-terraform:
+    #!/bin/bash
+    set -euo pipefail
+    if command -v terraform &>/dev/null; then echo "terraform already installed"; exit 0; fi
+    # https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli
+    sudo apt-get install -y gnupg software-properties-common
+    wget -O- https://apt.releases.hashicorp.com/gpg | gpg --dearmor | sudo tee /usr/share/keyrings/hashicorp-archive-keyring.gpg > /dev/null
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(grep -oP '(?<=UBUNTU_CODENAME=).*' /etc/os-release || lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+    sudo apt-get update
+    sudo apt-get install -y terraform
+
+install-k3d:
+    #!/bin/bash
+    set -euo pipefail
+    if command -v k3d &>/dev/null; then echo "k3d already installed"; exit 0; fi
+    # https://k3d.io/stable/
+    wget -q -O - https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
+
+install-kubectl:
+    #!/bin/bash
+    set -euo pipefail
+    if command -v kubectl &>/dev/null; then echo "kubectl already installed"; exit 0; fi
+    # https://kubernetes.io/docs/tasks/tools/install-kubectl-linux/
+    TEMP_FILE=$(mktemp)
+    curl -fsSL "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" -o "$TEMP_FILE"
+    sudo install -o root -g root -m 0755 "$TEMP_FILE" /usr/local/bin/kubectl
+    rm "$TEMP_FILE"
+
+install-crane: install-go
+    #!/bin/bash
+    set -euo pipefail
+    {{go_setup}}
+    if command -v crane &>/dev/null; then echo "crane already installed"; exit 0; fi
+    go install github.com/google/go-containerregistry/cmd/crane@latest
+
+install-cue: install-go
+    #!/bin/bash
+    set -euo pipefail
+    {{go_setup}}
+    if command -v cue &>/dev/null; then echo "cue already installed"; exit 0; fi
+    go install cuelang.org/go/cmd/cue@latest
+
+install-dive: install-go
+    #!/bin/bash
+    set -euo pipefail
+    {{go_setup}}
+    if command -v dive &>/dev/null; then echo "dive already installed"; exit 0; fi
+    go install github.com/wagoodman/dive@latest
+
+install-gitsign: install-go
+    #!/bin/bash
+    set -euo pipefail
+    {{go_setup}}
+    if command -v gitsign &>/dev/null; then echo "gitsign already installed"; exit 0; fi
+    # https://docs.sigstore.dev/cosign/signing/gitsign/
+    go install github.com/sigstore/gitsign@latest
+
+install-yam: install-go
+    #!/bin/bash
+    set -euo pipefail
+    {{go_setup}}
+    if command -v yam &>/dev/null; then echo "yam already installed"; exit 0; fi
+    go install github.com/chainguard-dev/yam@latest
+
+# ============================================================================
+# Desktop / GUI applications
+# ============================================================================
+
+install-desktop-apt-packages:
+    #!/bin/bash
+    set -euo pipefail
+    sudo apt-get update
+    sudo apt-get install -y \
+        meld \
+        xournalpp \
+        yubikey-manager
+
+install-snap-packages:
+    #!/bin/bash
+    set -euo pipefail
+    # # Snaps that need --classic
+    # for pkg in SOMETHING; do
+    #     if ! snap list "$pkg" &>/dev/null; then
+    #         sudo snap install "$pkg" --classic
+    #     fi
+    # done
+
+    # Standard snaps
+    for pkg in fx slack ticktick; do
+        if ! snap list "$pkg" &>/dev/null; then
+            sudo snap install "$pkg"
+        fi
+    done
+
+install-chrome:
+    #!/bin/bash
+    set -euo pipefail
+    if command -v google-chrome &>/dev/null; then
+        echo "Chrome already installed"
+        exit 0
+    fi
+    TEMP_DEB=$(mktemp --suffix=.deb)
+    wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -O "$TEMP_DEB"
+    sudo dpkg -i "$TEMP_DEB" || sudo apt-get install -f -y
+    rm "$TEMP_DEB"
+
+install-kitty:
+    #!/bin/bash
+    set -euo pipefail
+    if command -v kitty &>/dev/null; then
+        echo "kitty already installed"
+        exit 0
+    fi
+    # https://sw.kovidgoyal.net/kitty/binary/
+    curl -L https://sw.kovidgoyal.net/kitty/installer.sh | sh /dev/stdin
+    mkdir -p "$HOME/.local/bin"
+    ln -sf ~/.local/kitty.app/bin/kitty ~/.local/bin/kitty
+    ln -sf ~/.local/kitty.app/bin/kitten ~/.local/bin/kitten
+    mkdir -p "$HOME/.local/share/applications"
+    cp ~/.local/kitty.app/share/applications/kitty.desktop ~/.local/share/applications/
+    cp ~/.local/kitty.app/share/applications/kitty-open.desktop ~/.local/share/applications/
+    sed -i "s|Icon=kitty|Icon=$(readlink -f ~)/.local/kitty.app/share/icons/hicolor/256x256/apps/kitty.png|g" ~/.local/share/applications/kitty*.desktop
+    sed -i "s|Exec=kitty|Exec=$(readlink -f ~)/.local/kitty.app/bin/kitty|g" ~/.local/share/applications/kitty*.desktop
+    echo 'kitty.desktop' > ~/.config/xdg-terminals.list
+    sudo update-alternatives --install /usr/bin/x-terminal-emulator x-terminal-emulator "$HOME/.local/bin/kitty" 50
+    sudo update-alternatives --set x-terminal-emulator "$HOME/.local/bin/kitty"
+
+install-sublime:
+    #!/bin/bash
+    set -euo pipefail
+    if command -v subl &>/dev/null; then echo "sublime already installed"; exit 0; fi
+    # https://www.sublimetext.com/docs/linux_repositories.html
+    wget -qO - https://download.sublimetext.com/sublimehq-pub.gpg | sudo tee /etc/apt/keyrings/sublimehq-pub.asc > /dev/null
+    echo -e 'Types: deb\nURIs: https://download.sublimetext.com/\nSuites: apt/stable/\nSigned-By: /etc/apt/keyrings/sublimehq-pub.asc' | sudo tee /etc/apt/sources.list.d/sublime-text.sources
+    sudo apt-get update
+    sudo apt-get install -y sublime-text
+
+install-jetbrains-toolbox:
+    #!/bin/bash
+    set -euo pipefail
+    if command -v jetbrains-toolbox &>/dev/null; then echo "jetbrains-toolbox already installed"; exit 0; fi
+    VERSION="3.0.1.59888"
+    TEMP_DIR=$(mktemp -d)
+    wget "https://download.jetbrains.com/toolbox/jetbrains-toolbox-${VERSION}.tar.gz" -O "$TEMP_DIR/jetbrains-toolbox.tar.gz"
+    tar -xzf "$TEMP_DIR/jetbrains-toolbox.tar.gz" -C "$TEMP_DIR"
+    mkdir -p "$HOME/.local/bin"
+    mv "$TEMP_DIR"/jetbrains-toolbox-*/jetbrains-toolbox "$HOME/.local/bin/"
+    rm -rf "$TEMP_DIR"
+
+install-obsidian:
+    #!/bin/bash
+    set -euo pipefail
+    if snap list obsidian &>/dev/null; then echo "obsidian already installed"; exit 0; fi
+    sudo snap install obsidian --classic
+    # Work around snap Chrome profile isolation
+    if [ -d "$HOME/snap/obsidian/current/.config/google-chrome" ]; then
+        sudo rm -rf "$HOME/snap/obsidian/current/.config/google-chrome"
+    fi
+    if [ -d "$HOME/.config/google-chrome" ]; then
+        ln -sf "$HOME/.config/google-chrome" "$HOME/snap/obsidian/current/.config/google-chrome"
+    fi
+
+install-dconf-editor:
+    #!/bin/bash
+    set -euo pipefail
+    if command -v dconf-editor &>/dev/null; then echo "dconf-editor already installed"; exit 0; fi
+    sudo add-apt-repository -y universe
+    sudo apt-get update
+    sudo apt-get install -y dconf-cli dconf-editor
+
+install-gnome-browser-connector:
+    #!/bin/bash
+    set -euo pipefail
+    if dpkg -s gnome-browser-connector &>/dev/null; then echo "gnome-browser-connector already installed"; exit 0; fi
+    sudo apt-get install -y gnome-browser-connector
+
+install-pop-shell: install-dev-apt-packages
+    #!/bin/bash
+    set -euo pipefail
+    # https://github.com/pop-os/shell
+    INSTALL_DIR="$HOME/.local/src/pop-shell"
+    if [ -d "$HOME/.local/share/gnome-shell/extensions/pop-shell@system76.com" ]; then
+        echo "pop-shell already installed"
+        exit 0
+    fi
+    if ! command -v npm &>/dev/null; then
+        echo "ERROR: npm required for pop-shell — skipping"
+        exit 1
+    fi
+    if ! command -v tsc &>/dev/null; then
+        sudo npm install -g typescript
+    fi
+    mkdir -p "$HOME/.local/src"
+    if [ ! -d "$INSTALL_DIR" ]; then
+        git clone https://github.com/pop-os/shell.git "$INSTALL_DIR"
+    fi
+    cd "$INSTALL_DIR"
+    git checkout master_noble
+    make local-install
+
+    echo ""
+    echo "NOTE: Log out and back in, then run:"
+    echo "  gnome-extensions enable 'pop-shell@system76.com'"
+
+    # Configure Pop Shell keybindings
+    export GSETTINGS_SCHEMA_DIR="$HOME/.local/share/gnome-shell/extensions/pop-shell@system76.com/schemas"
+    pop="org.gnome.shell.extensions.pop-shell"
+    gs() { gsettings set "$pop" "$@"; }
+
+    gs focus-left  "['<Super>Left']"
+    gs focus-right "['<Super>Right']"
+    gs focus-up    "['<Super>Up']"
+    gs focus-down  "['<Super>Down']"
+
+    gs search            "['']"
+    gs activate-launcher "['']"
+    gs tile-enter        "['']"
+    gs toggle-floating   "['']"
+    gs tile-swap-left  "['']"; gs tile-swap-right "['']"
+    gs tile-swap-up    "['']"; gs tile-swap-down  "['']"
+    gs tile-resize-left  "['']"; gs tile-resize-right "['']"
+    gs tile-resize-up    "['']"; gs tile-resize-down  "['']"
+    gs show-skip-taskbar "['']"
+
+    gs pop-workspace-left  "['']"; gs pop-workspace-right "['']"
+    gs pop-workspace-up    "['']"; gs pop-workspace-down  "['']"
+    gs pop-monitor-left    "['<Super><Ctrl>Left']"
+    gs pop-monitor-right   "['<Super><Ctrl>Right']"
+    gs pop-monitor-up      "['<Super><Ctrl>Up']"
+    gs pop-monitor-down    "['<Super><Ctrl>Down']"
+
+configure-gnome:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cat << DCONF_EOF | dconf load /
+    [org/gnome/mutter]
+    dynamic-workspaces=false
+    workspaces-only-on-primary=false
+
+    [org/gnome/desktop/wm/preferences]
+    num-workspaces=9
+
+    [org/gnome/shell/app-switcher]
+    current-workspace-only=true
+    [org/gnome/shell/extensions/dash-to-dock]
+    isolate-workspaces=true
+    [org/gnome/shell/extensions/tiling-assistant]
+    tiling-popup-all-workspace=false
+
+    DCONF_EOF
+
+    gsettings set org.gnome.desktop.peripherals.keyboard delay 200
+    dconf write /org/gnome/shell/keybindings/toggle-quick-settings "@as []"
+
+    wm="org.gnome.desktop.wm.keybindings"
+    mutter="org.gnome.mutter.keybindings"
+
+    gsettings set "$wm"    maximize            "['']"
+    gsettings set "$wm"    unmaximize          "['']"
+    gsettings set "$mutter" toggle-tiled-left   "['']"
+    gsettings set "$mutter" toggle-tiled-right  "['']"
+
+    shell_kb="org.gnome.shell.keybindings"
+    for i in $(seq 1 9); do
+        gsettings set "$shell_kb" "switch-to-application-$i" "['']"
+    done
+
+    dock="org.gnome.shell.extensions.dash-to-dock"
+    if gsettings list-keys "$dock" &>/dev/null; then
+        for i in $(seq 1 9); do
+            gsettings set "$dock" "app-hotkey-$i" "['']"
+        done
+        gsettings set "$dock" app-hotkey-10 "['']"
+    fi
+
+    gsettings set "$wm" switch-to-workspace-left  "['<Super>Page_Up']"
+    gsettings set "$wm" switch-to-workspace-right "['<Super>Page_Down']"
+    gsettings set "$wm" move-to-workspace-left  "['<Super><Shift>Page_Up']"
+    gsettings set "$wm" move-to-workspace-right "['<Super><Shift>Page_Down']"
+
+    gsettings set "$wm" move-to-monitor-left  "['']"
+    gsettings set "$wm" move-to-monitor-right "['']"
+    gsettings set "$wm" move-to-monitor-up    "['']"
+    gsettings set "$wm" move-to-monitor-down  "['']"
+
+    for i in $(seq 1 9); do
+        gsettings set "$wm" "switch-to-workspace-$i" "['<Super>$i']"
+    done
+    gsettings set "$wm" switch-to-workspace-10 "['<Super>0']"
+
+    for i in $(seq 1 9); do
+        gsettings set "$wm" "move-to-workspace-$i" "['<Super><Shift>$i']"
+    done
+    gsettings set "$wm" move-to-workspace-10 "['<Super><Shift>0']"
+
+    echo "GNOME configuration applied."
+
+# ============================================================================
+# Chainguard-specific tools
+# ============================================================================
+
+install-chainctl:
+    #!/bin/bash
+    set -euo pipefail
+    if command -v chainctl &>/dev/null; then echo "chainctl already installed"; exit 0; fi
+    curl -o /tmp/chainctl "https://dl.enforce.dev/chainctl/latest/chainctl_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/aarch64/arm64/')"
+    sudo install -o "$UID" -g "$(id -g)" -m 0755 /tmp/chainctl /usr/local/bin/
+    rm /tmp/chainctl
+    echo "NOTE: Run 'chainctl auth login' manually to authenticate"
+
+install-cg-tokens: install-ghcli install-chainctl
+    #!/bin/bash
+    set -euo pipefail
+    if command -v cg-tokens &>/dev/null; then echo "cg-tokens already installed"; exit 0; fi
+    if ! command -v gh &>/dev/null; then echo "ERROR: gh required for cg-tokens"; exit 1; fi
+    if ! command -v chainctl &>/dev/null; then echo "ERROR: chainctl required for cg-tokens"; exit 1; fi
+    # https://github.com/chainguard-dev/sandbox-of-power/tree/main/martin.wimpress/cg-tokens
+    chainctl config set default.social-login google-oauth2
+    TEMPFILE=$(mktemp)
+    mkdir -p "$HOME/.local/bin"
+    wget \
+      --header="Authorization: token $(gh auth token)" \
+      -O "$TEMPFILE" \
+      https://raw.githubusercontent.com/chainguard-dev/sandbox-of-power/refs/heads/main/martin.wimpress/cg-tokens/cg-tokens.sh
+    chmod +x "$TEMPFILE"
+    mv "$TEMPFILE" "$HOME/.local/bin/cg-tokens"
+
+install-wolfi-rc:
+    #!/bin/bash
+    set -euo pipefail
+    TARGET_DIR="$HOME/code/wolfi-rc/wolfi-rc"
+    if [ -d "$TARGET_DIR/main" ]; then echo "wolfi-rc already cloned"; exit 0; fi
+    mkdir -p "$TARGET_DIR"
+    git clone git@github.com:chainguard-dev/wolfi-rc.git "$TARGET_DIR/main"
+
+install-cosign:
+    #!/bin/bash
+    set -euo pipefail
+    if command -v cosign &>/dev/null; then echo "cosign already installed"; exit 0; fi
+    # https://github.com/sigstore/cosign
+    LATEST_VERSION=$(curl -s https://api.github.com/repos/sigstore/cosign/releases/latest | grep tag_name | cut -d : -f2 | tr -d "v\", ")
+    TEMP_DEB=$(mktemp --suffix=.deb)
+    curl -fsSL -o "$TEMP_DEB" "https://github.com/sigstore/cosign/releases/latest/download/cosign_${LATEST_VERSION}_amd64.deb"
+    sudo dpkg -i "$TEMP_DEB"
+    rm "$TEMP_DEB"
+
+install-hugo:
+    #!/bin/bash
+    set -euo pipefail
+    if command -v hugo &>/dev/null; then echo "hugo already installed"; exit 0; fi
+    # https://gohugo.io/installation/linux/
+    mkdir -p "$HOME/.local/bin"
+    TEMP_DIR=$(mktemp -d)
+    curl -s https://api.github.com/repos/gohugoio/hugo/releases/latest \
+      | grep -e "browser_download_url.*hugo_extended_[0-9].*_linux-amd64.tar.gz" \
+      | cut -d : -f 2,3 \
+      | tr -d \" \
+      | wget -q -i - -O - \
+      | tar xz -C "$TEMP_DIR" && mv "$TEMP_DIR/hugo" "$HOME/.local/bin/hugo"
+    rm -rf "$TEMP_DIR"
+
+install-grype:
+    #!/bin/bash
+    set -euo pipefail
+    if command -v grype &>/dev/null; then echo "grype already installed"; exit 0; fi
+    # https://github.com/anchore/grype
+    mkdir -p "$HOME/.local/bin"
+    curl -sSfL https://get.anchore.io/grype | sh -s -- -b "$HOME/.local/bin"
+
+install-syft:
+    #!/bin/bash
+    set -euo pipefail
+    if command -v syft &>/dev/null; then echo "syft already installed"; exit 0; fi
+    # https://github.com/anchore/syft
+    curl -sSfL https://get.anchore.io/syft | sudo sh -s -- -b /usr/local/bin
+
+# ============================================================================
+# System configuration
+# ============================================================================
+
+configure-swap:
+    #!/bin/bash
+    set -euo pipefail
+    if [ -f /swapfile ] && swapon --show | grep -q /swapfile; then
+        echo "Swap already configured"
+        exit 0
+    fi
+    sudo swapoff -a 2>/dev/null || true
+    sudo dd if=/dev/zero of=/swapfile bs=1G count=32
+    sudo chmod 0600 /swapfile
+    sudo mkswap /swapfile
+    sudo swapon /swapfile
+    echo "32GB swap file created and enabled"
