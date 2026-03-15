@@ -416,7 +416,7 @@ install-jetbrains-toolbox:
     wget "https://download.jetbrains.com/toolbox/jetbrains-toolbox-${VERSION}.tar.gz" -O "$TEMP_DIR/jetbrains-toolbox.tar.gz"
     tar -xzf "$TEMP_DIR/jetbrains-toolbox.tar.gz" -C "$TEMP_DIR"
     mkdir -p "$HOME/.local/bin"
-    mv "$TEMP_DIR"/jetbrains-toolbox-*/jetbrains-toolbox "$HOME/.local/bin/"
+    mv "$TEMP_DIR"/jetbrains-toolbox-*/bin/jetbrains-toolbox "$HOME/.local/bin/"
     rm -rf "$TEMP_DIR"
 
 install-obsidian:
