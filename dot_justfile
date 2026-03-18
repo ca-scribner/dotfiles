@@ -550,17 +550,23 @@ configure-gnome:
     gsettings set "$wm" move-to-workspace-left  "['<Super><Shift>Page_Up']"
     gsettings set "$wm" move-to-workspace-right "['<Super><Shift>Page_Down']"
 
+    # There is no -first, so we overload the -1 bindings below
+    gsettings set "$wm" switch-to-workspace-last "['<Super>End']"
+    gsettings set "$wm" move-to-workspace-last "['<Super><Shift>End']"
+
     gsettings set "$wm" move-to-monitor-left  "['']"
     gsettings set "$wm" move-to-monitor-right "['']"
     gsettings set "$wm" move-to-monitor-up    "['']"
     gsettings set "$wm" move-to-monitor-down  "['']"
 
-    for i in $(seq 1 9); do
+    gsettings set "$wm" switch-to-workspace-1 "['<Super>1', '<Super>Home']"
+    for i in $(seq 2 9); do
         gsettings set "$wm" "switch-to-workspace-$i" "['<Super>$i']"
     done
     gsettings set "$wm" switch-to-workspace-10 "['<Super>0']"
 
-    for i in $(seq 1 9); do
+    gsettings set "$wm" move-to-workspace-1 "['<Super><Shift>1', '<Super><Shift>Home']"
+    for i in $(seq 2 9); do
         gsettings set "$wm" "move-to-workspace-$i" "['<Super><Shift>$i']"
     done
     gsettings set "$wm" move-to-workspace-10 "['<Super><Shift>0']"
