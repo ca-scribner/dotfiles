@@ -98,3 +98,6 @@ eval "$(atuin init zsh)"
 
 # Load chainguard-specific extras
 [[ ! -f $HOME/.zsh_chainguard ]] || source $HOME/.zsh_chainguard
+
+# Setup cargo
+. "$HOME/.cargo/env"

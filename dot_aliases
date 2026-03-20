@@ -54,16 +54,12 @@ git-clone-from-local-and-fork() {
 ####################
 
 alias cdcode='cd $CODE_ROOT'
-alias cdmono='cd $CODE_ROOT/mono/chainguard-dev/'
-alias cdstereo='cd $CODE_ROOT/stereo/ca-scribner/'
+alias cdmono='cd $CODE_ROOT/mono'
+alias cdstereo='cd $CODE_ROOT/stereo'
 alias cdjunk='cd "$CODE_ROOT/junk"'
-alias cdsandbox='cd "$CODE_ROOT/sandbox-of-power/ca-scribner"'
-alias cdenp='cd "$CODE_ROOT/enterprise-packages/ca-scribner"'
-alias cdena='cd "$CODE_ROOT/enterprise-advisories/ca-scribner"'
-alias cdexp='cd "$CODE_ROOT/extra-packages/ca-scribner"'
-alias cdexa='cd "$CODE_ROOT/extra-advisories/ca-scribner"'
+alias cdsandbox='cd "$CODE_ROOT/sandbox-of-power"'
 
-alias cdadv='cd "$CODE_ROOT/sandbox-of-power/ca-scribner/advisory-browser/andrew.scribner/advisory-browser"'
+alias cdadv='cd "$CODE_ROOT/sandbox-of-power/advisory-browser/andrew.scribner/advisory-browser"'
 ####################
 # Other
 ####################

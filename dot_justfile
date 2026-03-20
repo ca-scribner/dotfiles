@@ -24,10 +24,10 @@ install-all: install-cli install-dev install-desktop install-chainguard install-
     @echo "  Log out and back in for docker group + zsh to take effect"
 
 # Essential command-line tools for any machine
-install-cli: install-cli-apt-packages install-zsh install-atuin install-claude install-uv install-nvm install-fzf install-fd install-eza install-lazygit install-delta install-diff-so-fancy install-yq install-git-fuzzy
+install-cli: install-cli-apt-packages install-zsh install-atuin install-claude install-uv install-nvm install-fzf install-fd install-eza install-lazygit install-delta install-diff-so-fancy install-yq install-git-fuzzy install-rtk
 
 # Development runtimes and tooling
-install-dev: install-dev-apt-packages install-go install-docker install-homebrew install-ghcli install-gcloud install-terraform install-k3d install-kubectl install-crane install-cue install-dive install-gitsign install-yam
+install-dev: install-dev-apt-packages install-go install-docker install-homebrew install-ghcli install-gcloud install-terraform install-k3d install-kubectl install-crane install-cue install-dive install-gitsign install-yam install-cargo
 
 # GUI applications and desktop environment
 install-desktop: install-desktop-apt-packages install-snap-packages install-chrome install-kitty install-sublime install-jetbrains-toolbox install-obsidian install-dconf-editor install-gnome-browser-connector install-pop-shell configure-gnome
@@ -175,6 +175,12 @@ install-git-fuzzy:
         git clone https://github.com/bigH/git-fuzzy.git "$HOME/.local/src/git-fuzzy"
     fi
     ln -sf "$HOME/.local/src/git-fuzzy/bin/git-fuzzy" "$HOME/.local/bin/git-fuzzy"
+
+install-rtk:
+    #!/bin/bash
+    curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh
+    # Installs claude hook
+    rtk init --global
 
 # ============================================================================
 # Development tools
@@ -333,6 +339,13 @@ install-yam: install-go
     {{go_setup}}
     if command -v yam &>/dev/null; then echo "yam already installed"; exit 0; fi
     go install github.com/chainguard-dev/yam@latest
+
+install-pkg-config:
+    sudo apt install pkg-config -y
+
+install-cargo: install-pkg-config
+    #!/bin/bash
+    curl https://sh.rustup.rs -sSf | sh
 
 # ============================================================================
 # Desktop / GUI applications

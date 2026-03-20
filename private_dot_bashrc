@@ -31,3 +31,4 @@ eval "$(atuin init bash)"
 
 # autocomplete for fx
 source <(fx --comp zsh)
+. "$HOME/.cargo/env"
