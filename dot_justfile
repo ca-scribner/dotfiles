@@ -506,6 +506,7 @@ install-pop-shell: install-dev-apt-packages
     gs tile-resize-left  "['']"; gs tile-resize-right "['']"
     gs tile-resize-up    "['']"; gs tile-resize-down  "['']"
     gs show-skip-taskbar "['']"
+    gs toggle-tiling "['']"
 
     gs pop-workspace-left  "['']"; gs pop-workspace-right "['']"
     gs pop-workspace-up    "['']"; gs pop-workspace-down  "['']"
@@ -551,6 +552,7 @@ configure-gnome:
     done
 
     dock="org.gnome.shell.extensions.dash-to-dock"
+    gsettings set "$dock" hot-keys false
     if gsettings list-keys "$dock" &>/dev/null; then
         for i in $(seq 1 9); do
             gsettings set "$dock" "app-hotkey-$i" "['']"
