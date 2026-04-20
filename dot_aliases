@@ -49,6 +49,21 @@ git-clone-from-local-and-fork() {
   git fetch origin
 }
 
+# Check out a GitHub PR into a new git worktree.
+# Usage: pr-worktree <pr-number> [worktree-dir]
+# Leaves you inside the new worktree.
+git-checkout-pr-as-worktree() {
+  local pr="$1"
+  local dir="${2:-pr-$1}"
+  if [[ -z "$pr" ]]; then
+    echo "usage: pr-worktree <pr-number> [worktree-dir]" >&2
+    return 1
+  fi
+  git worktree add --detach "$dir" || return
+  cd "$dir" || return
+  gh pr checkout "$pr"
+}
+
 ####################
 # Quick links to common directories
 ####################
