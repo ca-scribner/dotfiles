@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $# -ne 1 ]]; then
+	echo "usage: $(basename "$0") BRANCH" >&2
+	exit 2
+fi
+
+branch=$1
+git fetch origin main
+git worktree add -b "$branch" "$branch" origin/main
