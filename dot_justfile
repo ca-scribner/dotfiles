@@ -24,7 +24,7 @@ install-all: install-cli install-dev install-desktop install-chainguard install-
     @echo "  Log out and back in for docker group + zsh to take effect"
 
 # Essential command-line tools for any machine
-install-cli: install-cli-apt-packages install-zsh install-atuin install-claude install-uv install-nvm install-fzf install-fd install-eza install-lazygit install-delta install-diff-so-fancy install-yq install-git-fuzzy install-rtk
+install-cli: install-cli-apt-packages install-zsh install-atuin install-claude install-claude-config install-uv install-nvm install-fzf install-fd install-eza install-lazygit install-delta install-diff-so-fancy install-yq install-git-fuzzy install-rtk
 
 # Development runtimes and tooling
 install-dev: install-dev-apt-packages install-go install-docker install-homebrew install-ghcli install-gcloud install-terraform install-k3d install-kubectl install-crane install-cue install-dive install-gitsign install-yam install-cargo
@@ -75,6 +75,26 @@ install-claude:
     set -euo pipefail
     if command -v claude &>/dev/null; then echo "claude already installed"; exit 0; fi
     curl -fsSL https://claude.ai/install.sh | bash
+
+# Personal Claude config (skills, commands, knowledgebases, settings), symlinked
+# from the private ca-scribner/claude-config repo (bare + worktree per convention).
+install-claude-config: install-claude
+    #!/bin/bash
+    set -euo pipefail
+    REPO="$HOME/code/claude-config"
+    if [ ! -d "$REPO" ]; then
+        git clone --bare git@github.com:ca-scribner/claude-config.git "$REPO"
+        git -C "$REPO" config remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'
+        git -C "$REPO" fetch origin --quiet
+        git -C "$REPO" worktree add "$REPO/main" main
+    fi
+    # Prefer the live work bundle when present (edit-in-place); otherwise fall back
+    # to the self-contained _vendored mirror on machines without the work repo.
+    if [ -d "$HOME/code/sandbox-of-power/claude/andrew.scribner/claude" ]; then
+        "$REPO/main/install.sh"
+    else
+        "$REPO/main/install.sh" --mode personal
+    fi
 
 install-uv:
     #!/bin/bash
@@ -201,7 +221,7 @@ install-go:
     #!/bin/bash
     set -euo pipefail
     # https://go.dev/doc/install
-    GO_VERSION="1.25.4"
+    GO_VERSION="1.26.3"
     if command -v go &>/dev/null; then
         INSTALLED="$(go version | grep -oP 'go\K[0-9]+\.[0-9]+\.[0-9]+')"
         if [[ "$INSTALLED" == "$GO_VERSION" ]]; then
