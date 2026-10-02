@@ -20,17 +20,17 @@ install-all: install-cli install-dev install-desktop install-chainguard install-
     @echo "  gh auth login -p ssh"
     @echo "  ssh-keygen -t ed25519-sk -C 'ca.scribner+1@gmail.com'"
     @echo "  chainctl auth login"
-    @echo "  gnome-extensions enable 'pop-shell@system76.com' (after logout/login)"
+    @echo "  gnome-extensions enable 'tilingshell@ferrarodomenico.com' (after logout/login)"
     @echo "  Log out and back in for docker group + zsh to take effect"
 
 # Essential command-line tools for any machine
-install-cli: install-cli-apt-packages install-zsh install-atuin install-claude install-claude-config install-uv install-nvm install-fzf install-fd install-eza install-lazygit install-delta install-diff-so-fancy install-yq install-git-fuzzy install-rtk
+install-cli: install-cli-apt-packages install-zsh install-atuin install-claude install-claude-config install-uv install-nvm install-fzf install-fd install-eza install-lazygit install-delta install-diff-so-fancy install-yq install-git-fuzzy install-rtk install-tailscale
 
 # Development runtimes and tooling
 install-dev: install-dev-apt-packages install-go install-docker install-homebrew install-ghcli install-gcloud install-terraform install-k3d install-kubectl install-crane install-cue install-dive install-gitsign install-yam install-cargo
 
 # GUI applications and desktop environment
-install-desktop: install-desktop-apt-packages install-snap-packages install-chrome install-kitty install-sublime install-jetbrains-toolbox install-obsidian install-dconf-editor install-gnome-browser-connector install-pop-shell configure-gnome
+install-desktop: install-desktop-apt-packages install-snap-packages install-chrome install-kitty install-sublime install-jetbrains-toolbox install-obsidian install-dconf-editor install-gnome-browser-connector install-tilingshell configure-gnome
 
 # Chainguard work-specific tools
 install-chainguard: install-chainctl install-cg-tokens install-wolfi-rc install-cosign install-hugo install-grype install-syft
@@ -201,6 +201,15 @@ install-rtk:
     curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh
     # Installs claude hook
     rtk init --global
+
+install-herdr:
+    #!/bin/bash
+    curl -fsSL https://herdr.dev/install.sh | sh
+
+install-tailscale:
+    #!/bin/bash
+    curl -fsSL https://tailscale.com/install.sh | sh
+    sudo tailscale set --operator=$USER
 
 # ============================================================================
 # Development tools
@@ -452,6 +461,26 @@ install-jetbrains-toolbox:
     mv "$TEMP_DIR"/jetbrains-toolbox-*/bin/jetbrains-toolbox "$HOME/.local/bin/"
     rm -rf "$TEMP_DIR"
 
+install-cursor: install-cli-apt-packages
+    #!/bin/bash
+    set -euo pipefail
+    if command -v cursor &>/dev/null; then
+        echo "cursor already installed"
+    else
+        # https://cursor.com/docs/downloads — official API resolves the current stable .deb
+        DEB_URL=$(curl -fsSL -H 'Accept: application/json' 'https://cursor.com/api/download?platform=linux-x64&releaseTrack=stable' | jq -r '.debUrl')
+        TEMP_DEB=$(mktemp --suffix=.deb)
+        curl -fsSL "$DEB_URL" -o "$TEMP_DEB"
+        sudo dpkg -i "$TEMP_DEB" || sudo apt-get install -f -y
+        rm "$TEMP_DEB"
+    fi
+    if command -v cursor-agent &>/dev/null; then
+        echo "cursor-agent already installed"
+    else
+        # https://cursor.com/docs/cli — installs the cursor-agent CLI to ~/.local/bin
+        curl -fsSL https://cursor.com/install | bash
+    fi
+
 install-obsidian:
     #!/bin/bash
     set -euo pipefail
@@ -535,6 +564,47 @@ install-pop-shell: install-dev-apt-packages
     gs pop-monitor-up      "['<Super><Ctrl>Up']"
     gs pop-monitor-down    "['<Super><Ctrl>Down']"
 
+install-tilingshell: install-cli-apt-packages
+    #!/bin/bash
+    set -euo pipefail
+    # https://github.com/domferr/tilingshell
+    UUID="tilingshell@ferrarodomenico.com"
+    if [ -d "$HOME/.local/share/gnome-shell/extensions/$UUID" ]; then
+        echo "tilingshell already installed"
+    else
+        SHELL_MAJOR="$(gnome-shell --version | awk '{print $3}' | cut -d. -f1)"
+        DOWNLOAD_PATH="$(curl -fsSL "https://extensions.gnome.org/extension-info/?uuid=${UUID}&shell_version=${SHELL_MAJOR}" | jq -r '.download_url')"
+        TEMP_ZIP=$(mktemp --suffix=.zip)
+        curl -fsSL "https://extensions.gnome.org${DOWNLOAD_PATH}" -o "$TEMP_ZIP"
+        gnome-extensions install --force "$TEMP_ZIP"
+        rm "$TEMP_ZIP"
+        echo ""
+        echo "NOTE: Log out and back in, then run:"
+        echo "  gnome-extensions enable '$UUID'"
+    fi
+
+    # Keybindings are applied on every run (not only on first install) so that
+    # re-running the recipe restores them. dconf needs no schema, so this works
+    # before the extension is enabled.
+    # <Super><Alt>Up/Down are freed from GNOME's shift-overview in configure-gnome.
+    cat << DCONF_EOF | dconf load /org/gnome/shell/extensions/tilingshell/
+    [/]
+    focus-window-left=['<Super>Left']
+    focus-window-right=['<Super>Right']
+    focus-window-up=['<Super>Up']
+    focus-window-down=['<Super>Down']
+
+    move-window-left=['<Control><Super>Left']
+    move-window-right=['<Control><Super>Right']
+    move-window-up=['<Control><Super>Up']
+    move-window-down=['<Control><Super>Down']
+
+    span-window-left=['<Alt><Super>Left']
+    span-window-right=['<Alt><Super>Right']
+    span-window-up=['<Alt><Super>Up']
+    span-window-down=['<Alt><Super>Down']
+    DCONF_EOF
+
 configure-gnome:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -570,6 +640,9 @@ configure-gnome:
     for i in $(seq 1 9); do
         gsettings set "$shell_kb" "switch-to-application-$i" "['']"
     done
+    # Free <Super><Alt>Up/Down for Tiling Shell's span-window-up/down
+    gsettings set "$shell_kb" shift-overview-up   "['']"
+    gsettings set "$shell_kb" shift-overview-down "['']"
 
     dock="org.gnome.shell.extensions.dash-to-dock"
     gsettings set "$dock" hot-keys false
@@ -582,8 +655,12 @@ configure-gnome:
 
     gsettings set "$wm" switch-to-workspace-left  "['<Super>Page_Up']"
     gsettings set "$wm" switch-to-workspace-right "['<Super>Page_Down']"
+    gsettings set "$wm" switch-to-workspace-up  "['']"
+    gsettings set "$wm" switch-to-workspace-down "['']"
     gsettings set "$wm" move-to-workspace-left  "['<Super><Shift>Page_Up']"
     gsettings set "$wm" move-to-workspace-right "['<Super><Shift>Page_Down']"
+    gsettings set "$wm" move-to-workspace-up  "['']"
+    gsettings set "$wm" move-to-workspace-down "['']"
 
     # There is no -first, so we overload the -1 bindings below
     gsettings set "$wm" switch-to-workspace-last "['<Super>End']"

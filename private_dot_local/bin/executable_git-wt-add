@@ -1,0 +1,164 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+default_source="origin/main"
+
+usage() {
+    cat <<EOF
+Usage: $(basename "$0") [BRANCH] [--from <remote>/<branch>]
+
+Create a worktree on a new branch, cut from a remote-tracking branch.
+
+The source branch is fetched first, so the new branch starts from the remote's
+current tip. The worktree directory is named after BRANCH and created relative
+to the current directory.
+
+Arguments:
+  BRANCH         Name of the new local branch. Required unless --from is given,
+                 in which case it defaults to the source branch name. Naming a
+                 branch that already exists on the remote is refused, since that
+                 is ambiguous; pass --from to say which branch you mean.
+
+Options:
+  --from <ref>   Remote branch to cut from, as <remote>/<branch>
+                 (default: ${default_source})
+  -h, --help     Show this help
+
+Examples:
+  $(basename "$0") my-feature                       # from ${default_source}
+  $(basename "$0") backport --from origin/v1.2      # from another origin branch
+  $(basename "$0") --from origin/wip                # work on an existing remote branch
+EOF
+    exit "${1:-0}"
+}
+
+branch=""
+source_ref=""
+source_is_default=0
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -h|--help) usage 0 ;;
+        --from)
+            if [[ $# -lt 2 ]]; then
+                echo "Error: --from requires a value" >&2
+                usage 1
+            fi
+            source_ref="$2"; shift 2
+            ;;
+        -*)
+            echo "Unknown option: $1" >&2
+            usage 1
+            ;;
+        *)
+            if [[ -z "$branch" ]]; then
+                branch="$1"; shift
+            else
+                echo "Unexpected argument: $1" >&2
+                usage 1
+            fi
+            ;;
+    esac
+done
+
+if [[ -z "$source_ref" ]]; then
+    # Without --from there is no source branch name to fall back on, and the
+    # default source already has a worktree of its own.
+    if [[ -z "$branch" ]]; then
+        echo "Error: BRANCH is required unless --from is given" >&2
+        usage 1
+    fi
+    source_ref="$default_source"
+    source_is_default=1
+fi
+
+# Fail with git's own message when run outside a repo, so the remote check below
+# can assume a repo exists.
+git rev-parse --git-dir >/dev/null
+
+# Split on the first slash only, so source branch names may contain slashes.
+remote="${source_ref%%/*}"
+source_branch="${source_ref#*/}"
+
+if [[ "$source_ref" != */* || -z "$remote" || -z "$source_branch" ]]; then
+    echo "Error: --from must be <remote>/<branch>, got '${source_ref}'" >&2
+    exit 1
+fi
+
+if ! git remote get-url "$remote" >/dev/null 2>&1; then
+    echo "Error: '${remote}' is not a remote of this repo. Known remotes:" >&2
+    git remote | sed 's/^/  /' >&2
+    exit 1
+fi
+
+if [[ -z "$branch" ]]; then
+    branch="$source_branch"
+fi
+
+branch_exists=0
+if git show-ref --verify --quiet "refs/heads/${branch}"; then
+    branch_exists=1
+fi
+
+# A branch name that already exists on the remote nearly always means that branch
+# is the one wanted. Cutting a same-named branch from the default source instead
+# starts the work from the wrong base and aims the upstream at the wrong branch,
+# which stays invisible until a push is rejected or commits turn up missing.
+# The remote is the authority here: a branch pushed since the last fetch has no
+# remote-tracking ref to find locally.
+if (( ! branch_exists && source_is_default )) \
+    && git ls-remote --exit-code --heads "$remote" "refs/heads/${branch}" >/dev/null 2>&1; then
+    cat >&2 <<EOF
+Error: '${remote}/${branch}' already exists on the remote, so cutting '${branch}'
+from ${source_ref} would silently diverge from it. Say which you meant:
+
+  work on the existing remote branch:
+    $(basename "$0") --from ${remote}/${branch}
+
+  start fresh from ${source_ref} regardless:
+    $(basename "$0") ${branch} --from ${source_ref}
+EOF
+    exit 1
+fi
+
+# git reports an occupied path or an already-checked-out branch only after printing
+# its progress lines, which reads as though the worktree had been created. Both are
+# also the likely state on a re-run, so they are worth catching before the fetch.
+if [[ -e "$branch" ]]; then
+    echo "Error: '${branch}' already exists under $(pwd); remove it or pick another name." >&2
+    exit 1
+fi
+
+existing_worktree="$(git worktree list --porcelain | awk -v ref="refs/heads/${branch}" '
+    $1 == "worktree" { wt = $2 }
+    $1 == "branch" && $2 == ref { print wt; exit }
+')"
+if [[ -n "$existing_worktree" ]]; then
+    echo "Error: branch '${branch}' is already checked out at ${existing_worktree}." >&2
+    exit 1
+fi
+
+git fetch "$remote" "$source_branch"
+
+if (( branch_exists )); then
+    # Reusing the branch where it is, rather than recreating it from the source,
+    # keeps any commits already on it.
+    echo "Branch '${branch}' already exists; attaching a worktree to it at its current tip."
+    echo "It is not being reset to ${remote}/${source_branch}."
+    git worktree add "$branch" "$branch"
+
+    upstream="$(git -C "$branch" rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)"
+    if [[ -z "$upstream" ]]; then
+        # A branch left over from an interrupted setup may never have been given an
+        # upstream. Match what the -b path below would have configured.
+        git -C "$branch" branch --set-upstream-to="${remote}/${source_branch}" "$branch"
+    elif [[ "$upstream" != "${remote}/${source_branch}" ]]; then
+        # Leaving a mismatched upstream in place is consistent with not resetting the
+        # tip, but it governs what status compares against and where a push lands, so
+        # it cannot stay silent.
+        echo "Warning: '${branch}' tracks '${upstream}', not '${remote}/${source_branch}'." >&2
+        echo "         Repoint it with: git -C ${branch} branch --set-upstream-to=${remote}/${source_branch}" >&2
+    fi
+else
+    git worktree add -b "$branch" "$branch" "${remote}/${source_branch}"
+fi

@@ -7,7 +7,7 @@
 [tag]
 	gpgsign = true
 [gpg "x509"]
-	program = gitsign
+	program = /home/scribs/go/bin/gitsign
 [gpg]
 	format = x509
 [core]
@@ -22,3 +22,17 @@
 	defaultBranch = main
 [gitsign]
 	connectorID = https://accounts.google.com
+[safe]
+
+[credential "https://github.com"]
+	helper = 
+	helper = !/usr/bin/gh auth git-credential
+[credential "https://gist.github.com"]
+	helper = 
+	helper = !/usr/bin/gh auth git-credential
+[alias]
+	fb = "!f(){ git fetch origin \"+refs/heads/$1:refs/remotes/origin/$1\"; }; f"
+	fpr = "!f(){ git fetch origin \"+refs/pull/$1/head:refs/remotes/origin/pr/$1\"; }; f"
+	dropref = "!f(){ git update-ref -d \"refs/remotes/origin/$1\"; }; f"
+[maintenance]
+	repo = /home/scribs/code/stereo

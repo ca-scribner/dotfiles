@@ -50,9 +50,9 @@ git-clone-from-local-and-fork() {
 }
 
 # Check out a GitHub PR into a new git worktree.
-# Usage: pr-worktree <pr-number> [worktree-dir]
+# Usage: git-wt-from-pr <pr-number> [worktree-dir]
 # Leaves you inside the new worktree.
-git-checkout-pr-as-worktree() {
+git-wt-from-pr() {
   local pr="$1"
   local dir="${2:-pr-$1}"
   if [[ -z "$pr" ]]; then
@@ -69,12 +69,14 @@ git-checkout-pr-as-worktree() {
 ####################
 
 alias cdcode='cd $CODE_ROOT'
+alias cdcqt='cd $CODE_ROOT/cqt'
 alias cdmono='cd $CODE_ROOT/mono'
 alias cdstereo='cd $CODE_ROOT/stereo'
 alias cdjunk='cd "$CODE_ROOT/junk"'
 alias cdsandbox='cd "$CODE_ROOT/sandbox-of-power"'
 
 alias cdadv='cd "$CODE_ROOT/sandbox-of-power/advisory-browser/andrew.scribner/advisory-browser"'
+alias cdauto='cdsandbox; cd automated-cve-remediation/andrew.scribner/automated-cve-remediation'
 ####################
 # Other
 ####################
