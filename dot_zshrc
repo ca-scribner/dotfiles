@@ -61,6 +61,12 @@ export KUBE_EDITOR='subl -n -w'
 export PATH="$PATH:/usr/local/go/bin"
 export PATH="$PATH:$(go env GOPATH)/bin"
 
+# Reuse gitsign signing certs via gitsign-credential-cache (see `just install-gitsign`).
+# Only export when the socket exists: gitsign fails the commit if the cache is unreachable.
+_gitsign_cache_sock="${XDG_CACHE_HOME:-$HOME/.cache}/sigstore/gitsign/cache.sock"
+[[ -S $_gitsign_cache_sock ]] && export GITSIGN_CREDENTIAL_CACHE="$_gitsign_cache_sock"
+unset _gitsign_cache_sock
+
 # autocomplete for fx
 source <(fx --comp zsh)
 
