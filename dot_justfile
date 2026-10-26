@@ -359,12 +359,18 @@ install-gitsign: install-go
     set -euo pipefail
     {{go_setup}}
     # https://docs.sigstore.dev/cosign/signing/gitsign/
-    if command -v gitsign &>/dev/null; then echo "gitsign already installed"; else go install github.com/sigstore/gitsign@latest; fi
+    # v0.18.0 is the first release whose credential cache is shared across
+    # working directories. Older versions need one login per worktree.
+    version=v0.18.0
+    if gitsign version 2>/dev/null | grep -q "gitsign version $version$"; then echo "gitsign $version already installed"; else go install github.com/sigstore/gitsign@$version; fi
     # Cache the short-lived signing cert so each commit doesn't open a browser login.
     # chezmoi provides the systemd units; .zshrc points gitsign at the socket.
     # https://github.com/sigstore/gitsign/tree/main/cmd/gitsign-credential-cache
-    if command -v gitsign-credential-cache &>/dev/null; then echo "gitsign-credential-cache already installed"; else go install github.com/sigstore/gitsign/cmd/gitsign-credential-cache@latest; fi
+    # Always reinstall the cache so its version stays in step with gitsign.
+    go install github.com/sigstore/gitsign/cmd/gitsign-credential-cache@$version
     systemctl --user daemon-reload
+    # Pick up a new binary; the socket restarts the service on the next use.
+    systemctl --user try-restart gitsign-credential-cache.service
     systemctl --user enable --now gitsign-credential-cache.socket
 
 install-yam: install-go

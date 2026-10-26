@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# git sign-unpushed: sign the commits on HEAD that no remote has yet.
+#
+# Agent sessions commit unsigned, because each gitsign signature can open a
+# browser login. This signs their work in one go just before a push (see the
+# `spush` alias), so a burst of agent commits costs at most one login.
+#
+# Commits are re-created with `git commit-tree -S`, keeping tree, authorship,
+# committer and message. The working tree and index are never touched, so it
+# is safe with uncommitted changes and cannot hit rebase conflicts. Commits
+# that a remote already has are never rewritten, so the push stays a
+# fast-forward.
+set -euo pipefail
+
+is_signed() { git cat-file commit "$1" | sed '/^$/q' | grep -q '^gpgsig '; }
+
+# Oldest first, so each commit's parents are re-created before it is.
+mapfile -t commits < <(git rev-list --reverse --topo-order HEAD --not --remotes)
+
+declare -A rewritten=()
+for c in "${commits[@]}"; do
+  mapfile -t parents < <(git rev-parse "$c^@")
+  parent_args=()
+  parents_changed=false
+  for p in "${parents[@]}"; do
+    if [ -n "${rewritten[$p]:-}" ]; then
+      parents_changed=true
+      p="${rewritten[$p]}"
+    fi
+    parent_args+=(-p "$p")
+  done
+
+  if ! $parents_changed && is_signed "$c"; then
+    continue
+  fi
+
+  IFS=$'\x1f' read -r an ae ad cn ce cd < <(git show -s --date=raw --format='%an%x1f%ae%x1f%ad%x1f%cn%x1f%ce%x1f%cd' "$c")
+  # The message is everything after the header block, byte for byte.
+  rewritten[$c]="$(git cat-file commit "$c" | sed '1,/^$/d' |
+    GIT_AUTHOR_NAME="$an" GIT_AUTHOR_EMAIL="$ae" GIT_AUTHOR_DATE="$ad" \
+    GIT_COMMITTER_NAME="$cn" GIT_COMMITTER_EMAIL="$ce" GIT_COMMITTER_DATE="$cd" \
+    git commit-tree -S "${parent_args[@]}" "$(git rev-parse "$c^{tree}")")"
+done
+
+old_head="$(git rev-parse HEAD)"
+new_head="${rewritten[$old_head]:-}"
+if [ -z "$new_head" ]; then
+  echo "git sign-unpushed: all unpushed commits are already signed" >&2
+  exit 0
+fi
+git update-ref -m "sign-unpushed" HEAD "$new_head" "$old_head"
+echo "git sign-unpushed: signed ${#rewritten[@]} commit(s); HEAD is now $(git rev-parse --short HEAD)" >&2

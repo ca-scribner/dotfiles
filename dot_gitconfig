@@ -12,6 +12,8 @@
 	format = x509
 [core]
 	pager = delta
+	# Global hooks, including a pre-push check that blocks unsigned commits.
+	hooksPath = ~/.config/git/hooks
 [interactive]
 	diffFilter = delta --color-only
 [delta]
@@ -34,5 +36,7 @@
 	fb = "!f(){ git fetch origin \"+refs/heads/$1:refs/remotes/origin/$1\"; }; f"
 	fpr = "!f(){ git fetch origin \"+refs/pull/$1/head:refs/remotes/origin/pr/$1\"; }; f"
 	dropref = "!f(){ git update-ref -d \"refs/remotes/origin/$1\"; }; f"
+	# Sign unpushed commits (agents commit unsigned), then push.
+	spush = "!f(){ git sign-unpushed && git push \"$@\"; }; f"
 [maintenance]
 	repo = /home/scribs/code/stereo

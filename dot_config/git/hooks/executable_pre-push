@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# Global pre-push hook (core.hooksPath): refuse to push unsigned commits.
+#
+# Agent sessions commit unsigned and are meant to sign at push time with
+# `git spush`. This hook is the safety net that keeps a plain `git push` from
+# sending their unsigned commits to GitHub, where policy requires gitsign.
+set -euo pipefail
+
+remote="$1"
+updates="$(cat)"
+
+is_signed() { git cat-file commit "$1" | sed '/^$/q' | grep -q '^gpgsig '; }
+
+zero="$(git hash-object --stdin </dev/null | tr '0-9a-f' '0')"
+unsigned=()
+while read -r _local_ref local_sha _remote_ref _remote_sha; do
+  [ -n "${local_sha:-}" ] || continue
+  # Deletions push no commits.
+  [ "$local_sha" = "$zero" ] && continue
+  for c in $(git rev-list "$local_sha" --not --remotes); do
+    is_signed "$c" || unsigned+=("$c")
+  done
+done <<<"$updates"
+
+if [ "${#unsigned[@]}" -gt 0 ]; then
+  {
+    echo "pre-push: refusing to push ${#unsigned[@]} unsigned commit(s) to '$remote':"
+    for c in "${unsigned[@]}"; do git log -1 --format='  %h %s' "$c"; done
+    cat <<'EOF'
+
+Every pushed commit must be signed with gitsign. To fix this:
+  - Push with `git spush <same arguments as git push>`. It signs the unpushed
+    commits on the current branch, then pushes. It may open one gitsign login.
+  - Or run `git sign-unpushed` on the branch, then push again.
+  - If you push a branch other than the one checked out, check it out first.
+
+To skip this check for a remote that does not need signatures:
+  git push --no-verify ...
+EOF
+  } >&2
+  exit 1
+fi
+
+# core.hooksPath hides the repository's own hooks, so run its pre-push hook too.
+repo_hook="$(git rev-parse --path-format=absolute --git-common-dir)/hooks/pre-push"
+if [ -x "$repo_hook" ]; then
+  exec "$repo_hook" "$@" <<<"$updates"
+fi
