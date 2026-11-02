@@ -24,6 +24,8 @@
 	defaultBranch = main
 [gitsign]
 	connectorID = https://accounts.google.com
+	# Cache signing certs in the desktop keyring so all repos and worktrees share one login.
+	credentialCacheMode = system
 [safe]
 
 [credential "https://github.com"]
