@@ -138,15 +138,15 @@ install-eza: install-cli-apt-packages
     #!/bin/bash
     set -euo pipefail
     if command -v eza &>/dev/null; then echo "eza already installed"; exit 0; fi
+    # https://github.com/eza-community/eza/blob/main/INSTALL.md#debian-and-ubuntu
+    # Use eza's own repo: Ubuntu's package is older and ships no zsh completion. This one
+    # installs _eza into /usr/share/zsh/vendor-completions, which zsh loads by default.
+    sudo mkdir -p /etc/apt/keyrings
+    wget -qO- https://raw.githubusercontent.com/eza-community/eza/main/deb.asc | sudo gpg --dearmor --yes -o /etc/apt/keyrings/gierens.gpg
+    echo "deb [signed-by=/etc/apt/keyrings/gierens.gpg] http://deb.gierens.de stable main" | sudo tee /etc/apt/sources.list.d/gierens.list > /dev/null
+    sudo chmod 644 /etc/apt/keyrings/gierens.gpg /etc/apt/sources.list.d/gierens.list
     sudo apt-get update
     sudo apt-get install -y eza
-    # Zsh completions — .zshrc sets FPATH="$HOME/.local/src/completions/zsh:$FPATH"
-    mkdir -p "$HOME/.local/src"
-    if [ ! -d "$HOME/.local/src/eza" ]; then
-        git clone https://github.com/eza-community/eza.git "$HOME/.local/src/eza"
-    fi
-    mkdir -p "$HOME/.local/src/completions"
-    ln -sfn "$HOME/.local/src/eza/completions/zsh" "$HOME/.local/src/completions/zsh"
 
 install-lazygit:
     #!/bin/bash

@@ -83,9 +83,6 @@ source <(fx --comp zsh)
 # Activate global python venv so we don't mess with system, but still have something global
 source ~/.global_venv/bin/activate
 
-# eza autocompletions
-export FPATH="$HOME/.local/src/completions/zsh:$FPATH"
-
 # Set up fzf key bindings and fuzzy completion
 if command -v fzf > /dev/null 2>&1; then
   source <(fzf --zsh)
