@@ -101,6 +101,8 @@ eval "$(atuin init zsh)"
 
 # Setup cargo
 . "$HOME/.cargo/env"
-export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
-[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+
+# Node versions via fnm. --use-on-cd switches to a project's .nvmrc/.node-version on entry.
+if command -v fnm > /dev/null 2>&1; then
+  eval "$(fnm env --use-on-cd --shell zsh)"
+fi
