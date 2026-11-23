@@ -412,6 +412,11 @@ install-snap-packages:
         fi
     done
 
+    # .zshrc sources this copy instead of running `fx --comp zsh` at every shell start.
+    # The script only calls `fx` when you complete, so fx upgrades do not make it stale.
+    mkdir -p "$HOME/.local/share/zsh/completions"
+    fx --comp zsh > "$HOME/.local/share/zsh/completions/_fx"
+
 install-slack:
     #!/bin/bash
     set -euo pipefail
