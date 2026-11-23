@@ -1,0 +1,10 @@
+[Unit]
+Description=Keep the mono main worktree current during the work day
+
+[Timer]
+OnCalendar=Mon..Fri 05..16:00
+# Run once on wake if the laptop slept through a scheduled pull.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,13 @@
+[Unit]
+Description=Mirror the work Claude bundle into the personal claude-config repo
+# The mirror needs both repos. Machines without either skip the job instead of
+# failing it every day.
+ConditionPathExists=%h/code/claude-config/main/sync-from-work.sh
+ConditionPathExists=%h/code/sandbox-of-power/claude/andrew.scribner/claude
+
+[Service]
+Type=oneshot
+# Fail fast when the keyring agent is locked or absent, instead of waiting for a
+# passphrase prompt that nobody will answer.
+Environment="GIT_SSH_COMMAND=ssh -o BatchMode=yes"
+ExecStart=%h/code/claude-config/main/sync-from-work.sh

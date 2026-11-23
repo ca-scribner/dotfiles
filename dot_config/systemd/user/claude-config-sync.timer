@@ -1,0 +1,10 @@
+[Unit]
+Description=Mirror the work Claude bundle into claude-config once a day
+
+[Timer]
+OnCalendar=*-*-* 09:00:00
+# Run once on wake if the laptop slept through the scheduled sync.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

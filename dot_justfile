@@ -36,7 +36,7 @@ install-desktop: install-desktop-apt-packages install-snap-packages install-slac
 install-chainguard: install-chainctl install-cg-tokens install-wolfi-rc install-cosign install-hugo install-grype install-syft install-semgrep
 
 # OS-level configuration
-install-system: configure-swap
+install-system: configure-swap configure-timers
 
 # ============================================================================
 # CLI tools
@@ -805,3 +805,12 @@ configure-swap:
     sudo mkswap /swapfile
     sudo swapon /swapfile
     echo "32GB swap file created and enabled"
+
+# Enable the scheduled jobs that chezmoi ships as systemd user timers
+configure-timers:
+    #!/bin/bash
+    set -euo pipefail
+    # Each service skips itself on a machine without the repo it works on, so
+    # enabling every timer is safe everywhere.
+    systemctl --user daemon-reload
+    systemctl --user enable --now mono-main-pull.timer claude-config-sync.timer

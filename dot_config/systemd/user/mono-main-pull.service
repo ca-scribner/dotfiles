@@ -1,0 +1,13 @@
+[Unit]
+Description=Fast-forward the mono main worktree to origin/main
+# Machines without a mono checkout skip the job instead of failing it.
+ConditionPathExists=%h/code/mono/main
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/code/mono/main
+# Fail fast when the keyring agent is locked or absent, instead of waiting for a
+# passphrase prompt that nobody will answer.
+Environment="GIT_SSH_COMMAND=ssh -o BatchMode=yes"
+# main is never written to, so refuse anything but a fast-forward.
+ExecStart=/usr/bin/git pull --ff-only origin main
