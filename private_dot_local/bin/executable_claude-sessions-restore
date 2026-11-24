@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# claude-sessions-restore: reopen the sessions that claude-sessions-save
+# recorded. Each interactive session gets its own kitty OS window, the way
+# they are normally run. Background sessions are resumed in the background.
+#
+# Sessions that are still running are skipped, so one transcript never has
+# two writers. Pass --dry-run to list what would be launched.
+#
+# Usage: claude-sessions-restore [--dry-run] [snapshot.json]
+set -euo pipefail
+
+dry_run=false
+if [ "${1:-}" = --dry-run ]; then dry_run=true; shift; fi
+snapshot="${1:-${XDG_STATE_HOME:-$HOME/.local/state}/claude-sessions/snapshot.json}"
+
+if [ ! -f "$snapshot" ]; then
+  echo "No snapshot at $snapshot. Run claude-sessions-save first." >&2
+  exit 1
+fi
+
+live="$(claude agents --json)"
+
+# The plan is the saved sessions that are not live now, one per line as
+# kind, sessionId, cwd and name, separated by tabs.
+mapfile -t plan < <(jq -r --argjson live "$live" '
+  ($live | map(.sessionId)) as $running
+  | .[] | select(.sessionId as $id | $running | index($id) | not)
+  | [.kind, .sessionId, .cwd, (.name // "-")] | @tsv' "$snapshot")
+
+if [ "${#plan[@]}" -eq 0 ]; then
+  echo "Nothing to restore: every saved session is running."
+  exit 0
+fi
+
+for line in "${plan[@]}"; do
+  IFS=$'\t' read -r kind id cwd name <<<"$line"
+  if [ ! -d "$cwd" ]; then
+    echo "skip   $name ($id): $cwd no longer exists" >&2
+    continue
+  fi
+  echo "resume $kind $name ($id) in $cwd"
+  $dry_run && continue
+  if [ "$kind" = background ]; then
+    (cd "$cwd" && claude --bg --resume "$id")
+  else
+    kitty --detach --directory "$cwd" claude --resume "$id"
+  fi
+done

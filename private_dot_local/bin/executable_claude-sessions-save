@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# claude-sessions-save: record the live Claude Code sessions so that
+# claude-sessions-restore can bring them back after a reboot.
+#
+# The previous snapshot is kept as snapshot.prev.json, because a save run by
+# mistake after a reboot would otherwise replace the list with an empty one.
+set -euo pipefail
+
+dir="${XDG_STATE_HOME:-$HOME/.local/state}/claude-sessions"
+snapshot="$dir/snapshot.json"
+mkdir -p "$dir"
+
+tmp="$(mktemp "$dir/.snapshot.XXXXXX")"
+trap 'rm -f "$tmp"' EXIT
+claude agents --json >"$tmp"
+# Refuse to replace a good snapshot with output that is not a session list.
+jq -e 'type == "array"' "$tmp" >/dev/null
+
+[ -f "$snapshot" ] && mv "$snapshot" "$dir/snapshot.prev.json"
+mv "$tmp" "$snapshot"
+trap - EXIT
+
+jq -r '"Saved \(length) session(s) to '"$snapshot"'",
+       (.[] | "  \(.kind)\t\(.name // "-")\t\(.cwd)")' "$snapshot"
