@@ -650,6 +650,8 @@ configure-gnome:
 
     gsettings set org.gnome.desktop.peripherals.keyboard delay 200
     dconf write /org/gnome/shell/keybindings/toggle-quick-settings "@as []"
+    # Super+Alt+S toggles the Orca screen reader and is easy to hit by accident.
+    gsettings set org.gnome.settings-daemon.plugins.media-keys screenreader "['']"
 
     wm="org.gnome.desktop.wm.keybindings"
     mutter="org.gnome.mutter.keybindings"
